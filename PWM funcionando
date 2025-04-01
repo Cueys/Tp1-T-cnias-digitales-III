@@ -1,0 +1,73 @@
+#include <xc.h>
+#include "headerTP1.h"
+
+#include <xc.h>
+
+
+#define _XTAL_FREQ 4000000
+
+// PWM
+#define PWM_FREQ_HZ 500
+#define PWM_PERIOD_US (1000000UL / PWM_FREQ_HZ)  // 2000 us
+
+// Duty cycle table
+const unsigned char dutyLevels[] = {0, 25, 64, 128, 192, 255};
+unsigned char dutyIndex = 0;
+
+// Variables para PWM
+volatile unsigned char pwmCounter = 0;
+
+// === INTERRUPCIÓN EXTERNA EN GP2 ===
+void __interrupt() isr(void) {
+    if (INTF) {
+        INTF = 0; // Limpiar flag de interrupción externa
+
+        // Avanzar al siguiente nivel de brillo
+        dutyIndex++;
+        if (dutyIndex > 5)
+            dutyIndex = 0;
+    }
+
+    if (T0IF) {
+        T0IF = 0; // Limpiar flag de desbordamiento de Timer0
+
+        pwmCounter++;
+        if (pwmCounter >= 255)
+            pwmCounter = 0;
+
+        if (pwmCounter < dutyLevels[dutyIndex])
+            GPIO |= 0b00000001; // GP0 en alto
+        else
+            GPIO &= 0b11111110; // GP0 en bajo
+    }
+}
+
+void main(void) {
+    // === Configuración de puertos ===
+    TRISIO = 0b00000100; // GP2 como entrada (pulsador), GP0 como salida (PWM)
+    GPIO = 0x00;
+
+    // === Desactivar funciones analógicas / comparador ===
+    CMCON = 0x07; // Comparador desactivado
+
+    // === Configuración de Timer0 ===
+    OPTION_REG = 0b00000001; //modificando este registro puedo hacer que el WDT se resetee cada 2.3 s!!!!!!!
+    // PSA = 0 ? prescaler al Timer0
+    // PS = 001 ? prescaler 1:4
+    // T0CS = 0 ? reloj interno
+    // INTEDG = 0 ? flanco descendente en GP2
+
+    TMR0 = 0;  // Valor inicial del Timer0
+    T0IF = 0;  // Limpiar flag
+    T0IE = 1;  // Habilitar interrupción Timer0
+
+    // === Interrupción externa (GP2) ===
+    INTF = 0;   // Limpiar flag
+    INTE = 1;   // Habilitar interrupción externa
+
+    GIE = 1;    // Habilitar interrupciones globales
+
+    while (1) {
+        // Nada en el main: todo se maneja por interrupciones
+    }
+}
