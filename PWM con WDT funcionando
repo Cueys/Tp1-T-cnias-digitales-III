@@ -1,0 +1,131 @@
+#include <xc.h>
+#include "headerTP1.h"
+
+// Configuración de fusibles (añadir a tu headerTP1.h si no lo tienes)
+// #pragma config WDTE = ON    // Watchdog Timer habilitado
+// #pragma config MCLRE = OFF  // MCLR pin como entrada
+// #pragma config CP = OFF     // Protección de código desactivada
+// #pragma config PWRTE = ON   // Power-up Timer habilitado
+// #pragma config BOREN = ON   // Brown-out Reset habilitado
+
+#define _XTAL_FREQ 4000000
+
+// PWM
+#define PWM_FREQ_HZ 500
+#define PWM_PERIOD_US (1000000UL / PWM_FREQ_HZ)  // 2000 us
+
+// Duty cycle table
+const unsigned char dutyLevels[] = {0, 25, 64, 128, 192, 255};
+unsigned char dutyIndex = 0;
+
+// Variables para PWM
+volatile unsigned char pwmCounter = 0;
+
+// Variables para el Watchdog (contador de tiempo de inactividad)
+volatile unsigned int inactivityCounter = 0;
+#define WDT_TIMEOUT_CYCLES 52  // Aproximadamente 2 minutos (52 ciclos de 2.3s)
+
+// === INTERRUPCIÓN EXTERNA EN GP2 ===
+void __interrupt() isr(void) {
+    if (INTF) {
+        INTF = 0; // Limpiar flag de interrupción externa
+
+        // Avanzar al siguiente nivel de brillo
+        dutyIndex++;
+        if (dutyIndex > 5)
+            dutyIndex = 0;
+            
+        // Reiniciar contador de inactividad cuando se presiona el botón
+        inactivityCounter = 0;
+        
+        // Reiniciar el WDT
+        CLRWDT();
+    }
+
+    if (T0IF) {
+        T0IF = 0; // Limpiar flag de desbordamiento de Timer0
+
+        pwmCounter++;
+        if (pwmCounter >= 255)
+            pwmCounter = 0;
+
+        if (pwmCounter < dutyLevels[dutyIndex])
+            GPIO |= 0b00000001; // GP0 en alto
+        else
+            GPIO &= 0b11111110; // GP0 en bajo
+            
+        // Incrementar contador de inactividad cada cierto número de interrupciones Timer0
+        // El Timer0 se desborda rápidamente para generar el PWM, así que necesitamos
+        // un divisor para contar tiempo significativo
+        static unsigned int timerDivider = 0;
+        timerDivider++;
+        
+        // Incrementar el contador de inactividad aproximadamente cada 1 segundo
+        // Con preescaler de 1:4 y reloj de 4MHz, Timer0 se desborda cada ~256μs
+        // Así que necesitamos contar ~3906 desbordamientos para 1 segundo
+        if (timerDivider >= 3906) {
+            timerDivider = 0;
+            
+            // Incrementar contador de inactividad
+            inactivityCounter++;
+            
+            // Si han pasado aproximadamente 120 segundos (2 minutos)
+            if (inactivityCounter >= 120) {
+                // Apagar el LED antes de permitir el reinicio
+                GPIO &= 0b11111110; // GP0 en bajo
+                dutyIndex = 0;      // Reset duty cycle a 0%
+                
+                // Permitir que el WDT reinicie el sistema
+                // Para esto, simplemente dejamos que el WDT se desborde
+                // sin llamar a CLRWDT() en el bucle principal
+            } else {
+                // Reiniciar el WDT mientras no hayamos alcanzado el timeout
+                CLRWDT();
+            }
+        }
+    }
+}
+
+void main(void) {
+    // === Configuración de puertos ===
+    TRISIO = 0b00000100; // GP2 como entrada (pulsador), GP0 como salida (PWM)
+    GPIO = 0x00;
+
+    // === Desactivar funciones analógicas / comparador ===
+    CMCON = 0x07; // Comparador desactivado
+
+    // === Configuración de Timer0 y WDT ===
+    OPTION_REG = 0b10001111;
+    // PSA = 1 => Prescaler asignado al WDT (no al Timer0)
+    // PS = 111 => Prescaler 1:128 para WDT (aproximadamente 2.3s por ciclo)
+    // T0CS = 0 => reloj interno para Timer0
+    // PS del Timer0 = 001 => prescaler 1:4 (mantenemos la configuración original)
+    // INTEDG = 0 => flanco descendente en GP2
+
+    TMR0 = 0;  // Valor inicial del Timer0
+    T0IF = 0;  // Limpiar flag
+    T0IE = 1;  // Habilitar interrupción Timer0
+
+    // === Interrupción externa (GP2) ===
+    INTF = 0;   // Limpiar flag
+    INTE = 1;   // Habilitar interrupción externa
+
+    GIE = 1;    // Habilitar interrupciones globales
+    
+    // Inicializar contadores
+    inactivityCounter = 0;
+    
+    // Iniciar WDT
+    CLRWDT();
+
+    while (1) {
+        // Si estamos por debajo del tiempo de inactividad, reiniciamos el WDT
+        if (inactivityCounter < 120) {
+            CLRWDT();
+        }
+        // Si se ha excedido el tiempo, no hacemos nada y dejamos que el WDT reinicie el sistema
+        
+        // Resto del código si es necesario
+        __delay_ms(100); // Pequeña pausa para ahorrar energía
+    }
+}
