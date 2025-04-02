@@ -1,0 +1,16 @@
+// PIC12F629 Configuration Bit Settings
+
+// 'C' source line config statements
+
+// CONFIG
+// Configuración de fusibles 
+ #pragma config WDTE = ON    // Watchdog Timer habilitado
+ #pragma config MCLRE = OFF  // MCLR pin como entrada
+ #pragma config CP = OFF     // Protección de código desactivada
+ #pragma config PWRTE = ON   // Power-up Timer habilitado
+ #pragma config BOREN = ON   // Brown-out Reset habilitado
+
+// #pragma config statements should precede project file includes.
+// Use project enums instead of #define for ON and OFF.
+
+#include <xc.h>
