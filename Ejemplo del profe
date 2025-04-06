@@ -1,8 +1,7 @@
-
 /*
  * Programa en C para PIC12F629 usando XC8
- * Recepci�n UART a 9600 baudios, 8 bits, sin paridad, 1 bit de stop
- * Detecci�n de Start Bit por interrupci�n externa (flanco descendente en GP3)
+ * Recepción UART a 9600 baudios, 8 bits, sin paridad, 1 bit de stop
+ * Detección de Start Bit por interrupción externa (flanco descendente en GP3)
  * Captura de bits mediante Timer0
  *
  * PIC12F629
@@ -16,8 +15,8 @@
 #pragma config PWRTE = OFF      // Power-up Timer desactivado
 #pragma config MCLRE = OFF      // GP3 como I/O en lugar de MCLR
 #pragma config BOREN = OFF      // Brown-out Reset desactivado
-#pragma config CP = OFF         // Protecci�n de c�digo desactivada
-#pragma config CPD = OFF        // Protecci�n de datos desactivada
+#pragma config CP = OFF         // Protección de código desactivada
+#pragma config CPD = OFF        // Protección de datos desactivada
 
 #include <xc.h>
 
@@ -36,7 +35,7 @@ volatile unsigned char dato = 200;
 // Transmision
 #define TX_PIN GP4
 volatile uint8_t tx_byte = 0xEE;     // Byte a enviar (0xAA)
-volatile uint8_t send_flag = 0;      // Bandera para iniciar la transmisi�n
+volatile uint8_t send_flag = 0;      // Bandera para iniciar la transmisión
 volatile uint8_t start_bit = 0;
 #define TIMER0_RELOAD_TX 220
 
@@ -68,16 +67,16 @@ void dimmer_led(void)
 
 void __interrupt() ISR(void) {
     
-    // Interrupci�n por cambios en los puertos
+    // Interrupción por cambios en los puertos
     
-    if (INTCONbits.GPIF) {              // Verificar si ocurri� interrupci�n por cambio de pin
+    if (INTCONbits.GPIF) {              // Verificar si ocurrió interrupción por cambio de pin
         
         // Leer el estado actual de GPIO
         unsigned char current_gpio = GPIO;
         
-        if ((prev_gpio & (1 << 3)) && !(current_gpio & (1 << 3))) {             // Flanco descendente detectado (GP3 = 0) Comunicacion
+        if ((prev_gpio & (1 << 3)) && !(current_gpio & (1 << 3))) {             // Flanco descendente detectado (GP3 = 0) Comunicación
             if (!receiving) {
-                receiving = 1;          // Comienza la recepci�n de un nuevo byte
+                receiving = 1;          // Comienza la recepción de un nuevo byte
                 bit_index = 0;
                 TMR0 = 130;             // Pre cargar el Timer0 para un bit y medio 
                 T0IF = 0;               // Limpiar la bandera de Timer0
@@ -97,11 +96,11 @@ void __interrupt() ISR(void) {
     
         }
         
-        INTCONbits.GPIF = 0;        // Limpia la bandera de interrupci�n por cambio de pin
+        INTCONbits.GPIF = 0;        // Limpia la bandera de interrupción por cambio de pin
         prev_gpio = current_gpio;  // Actualizar el estado anterior
     }
     
-    // Interrupci�n por Timer0
+    // Interrupción por Timer0
     
     if (T0IF) {  
                
@@ -114,13 +113,13 @@ void __interrupt() ISR(void) {
                 received_byte |= RX_PIN << 7;
                 bit_index++;
             } else {
-                // Recepci�n completa
+                // Recepción completa
                 receiving = 0;
                 TMR0IE = 0;                         // Deshabilitar interrupciones por Timer0
                 dato = received_byte;
                 run_once = 0;
                                
-                INTCONbits.GPIF = 0;                // Limpia la bandera de interrupci�n por cambio de pin
+                INTCONbits.GPIF = 0;                // Limpia la bandera de interrupción por cambio de pin
                 IOC3 = 1;
                 
             }
@@ -144,8 +143,8 @@ void __interrupt() ISR(void) {
                 else
                 {
                     TX_PIN = 1;     // Bit de parada
-                    send_flag = 0;  // Fin de la transmisi�n
-                    bit_index = 0;  // Reiniciar �ndice de bits
+                    send_flag = 0;  // Fin de la transmisión
+                    bit_index = 0;  // Reiniciar índice de bits
                     
                     start_bit = 0;
                 }
@@ -183,7 +182,7 @@ void __interrupt() ISR(void) {
             if (run_once_tx == 0)
             {
                 tx_byte = 'S';
-                send_flag = 1;      // Inicia la transmision
+                send_flag = 1;      // Inicia la transmisión
                 run_once_tx = 1;
             }
         }
@@ -196,16 +195,16 @@ void __interrupt() ISR(void) {
 
 void main(void) {
      
-    CMCON = 0x07;               // Desactiva completamente el m�dulo comparador
+    CMCON = 0x07;               // Desactiva completamente el módulo comparador
     
     // Configuraci�n de puertos
-    TRISIO = 0b00001010;        // GP1 Pulsador y GP3 RX Comunicaci�n
+    TRISIO = 0b00001010;        // GP1 Pulsador y GP3 RX Comunicación
     
-    TX_PIN = 1;                 // Estado de reposo del puerto de comunicaci�n
+    TX_PIN = 1;                 // Estado de reposo del puerto de comunicación
 
-    // Configuraci�n de interrupciones
+    // Configuración de interrupciones
     
-    // Configuraci�n de Timer0 Resolucion 1us
+    // Configuración de Timer0 Resolucion 1us
     T0CS = 0;
     PSA  = 1;        // Prescaler asignado al watchdog
     T0IF = 0; 
@@ -215,7 +214,7 @@ void main(void) {
     PS1 = 1;
     PS0 = 1;
     
-    // Configuracion del Timer1 Resolucion
+    // Configuracion del Timer1 Resolución
     TMR1CS = 0;                 // Clock proviene del interno Fosc/4
     T1CKPS0 = 1;                // Prescaler en 8 -> 125KHz o 8us 
     T1CKPS1 = 1;
@@ -225,9 +224,9 @@ void main(void) {
     TMR1IE = 1;                 // Interrupcion por desborde activa
     INTCONbits.PEIE = 1;        // Habilita interrupciones de los perifericos
         
-    // Configuracion de Interrupciones
+    // Configuración de Interrupciones
     
-    IOC3 = 1;                   // Interrupcion para la comunicaci�n
+    IOC3 = 1;                   // Interrupcion para la comunicación
     IOC1 = 1;                   // Interrupcion para el pulsador   
     INTCONbits.GPIE = 1;        // Habilitar interrupciones por cambio en pines
        
@@ -259,7 +258,7 @@ void main(void) {
     
     while (1) {
         if (!receiving) {
-            // Aqu� puedes procesar el byte recibido (received_byte)
+            // Aquí puedes procesar el byte recibido (received_byte)
             // Por ejemplo, enviarlo a otro puerto o manipularlo
             if (run_once == 0)
             {
@@ -303,4 +302,5 @@ void main(void) {
             
         }
     }
+}
 }
